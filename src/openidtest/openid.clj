@@ -10,8 +10,8 @@
 (def ^:private consumerManager (ConsumerManager.))
 
 (defn redirect->openid [req]
-  (let [oidUrl "https://www.google.com/accounts/o8/id"
-        returnUrl "http://localhost:8080/openid-return"
+  (let [oidUrl "https://www.google.com/accounts/o8/id"        
+        returnUrl (str (-> :scheme req name) "://" (get-in req [:headers "host"]) "/openid-return")
         discoveries (.discover consumerManager oidUrl)
         discovered (.associate consumerManager discoveries)
         fetchRequest (doto (FetchRequest/createFetchRequest)
@@ -21,13 +21,13 @@
         dest-url (.getDestinationUrl authRequest true)
         _ (println "redirect->openid: discovered=" discovered)]
     (assoc (redirect dest-url)
-      :session (assoc (:session req) ::openid-discovered discovered))))
+      :session (assoc (:session req) :openid-discovered discovered))))
 
 (defn verify [req]
   (let [request req
         openidRequest (into {} (for [[k v] (:params request)] [(name k) v]))
         responseParameters (org.openid4java.message.ParameterList. openidRequest)
-        discovered (get-in req [:session ::openid-discovered])
+        discovered (get-in req [:session :openid-discovered])
         _ (println "verify: discovered=" discovered)
         receivingUrl (str (name (:scheme request)) "://"
                           ((:headers request) "host")
@@ -36,13 +36,23 @@
         verification (.verify consumerManager receivingUrl responseParameters 
                               discovered)
         verified (.getVerifiedId verification)
-        authSuccess (.getAuthResponse verification)
-        ;; check for verification here
-        fetchResp (.getExtension authSuccess org.openid4java.message.ax.AxMessage/OPENID_NS_AX)
-        email (.getAttributeValue fetchResp "email")
+
+        ;; check for verification here & clear the discovered key in session
+        
+
         ]
     (println "verify: verified=" verified)
-    verified))
+    (if verified
+      (let [authSuccess (.getAuthResponse verification)
+            fetchResp (.getExtension authSuccess org.openid4java.message.ax.AxMessage/OPENID_NS_AX)
+            email (.getAttributeValue fetchResp "email")
+            _ (println "verify: email=" email)]
+        (assoc (redirect "/") :session (assoc (:session req) :openid-discovered nil))
+        )
+      "not verified")))
+
+
+
 
 
 

@@ -6,4 +6,5 @@
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.openid4java/openid4java-consumer "0.9.5"]
                  [compojure "1.1.3"]
-                 [ring "1.1.6"]])
+                 [ring "1.1.6"]
+                 [hiccup "1.0.2"]])
