@@ -1,25 +1,34 @@
 (ns openidtest.openid
   "http://code.google.com/p/openid4java/
    http://davidtanzer.net/clojure_openid
-   http://sureshatt.blogspot.com/2011/05/openid-consumer-for-attribute-exchange.html")
+   http://sureshatt.blogspot.com/2011/05/openid-consumer-for-attribute-exchange.html"
+  (use [ring.util.response :only [redirect]])
+  (import org.openid4java.consumer.ConsumerManager
+          org.openid4java.message.ax.FetchRequest
+          org.openid4java.message.ax.AxMessage))
 
-(def ^:private consumerManager (org.openid4java.consumer.ConsumerManager.))
+(def ^:private consumerManager (ConsumerManager.))
 
-(def ^:private oid-discovered (atom nil))
-
-(defn redirect->openid [oidUrl returnUrl]
-  (let [discoveries (.discover consumerManager oidUrl)
+(defn redirect->openid [req]
+  (let [oidUrl "https://www.google.com/accounts/o8/id"
+        returnUrl "http://localhost:8080/openid-return"
+        discoveries (.discover consumerManager oidUrl)
         discovered (.associate consumerManager discoveries)
-        authRequest (.authenticate consumerManager discovered returnUrl)]
-    (reset! oid-discovered discovered)
-    (println "redirect->openid: discovered=" discovered)
-    (.getDestinationUrl authRequest true)))
+        fetchRequest (doto (FetchRequest/createFetchRequest)
+                       (.addAttribute "email""http://axschema.org/contact/email" true))
+        authRequest (doto (.authenticate consumerManager discovered returnUrl)
+                      (.addExtension fetchRequest))
+        dest-url (.getDestinationUrl authRequest true)
+        _ (println "redirect->openid: discovered=" discovered)]
+    (assoc (redirect dest-url)
+      :session (assoc (:session req) ::openid-discovered discovered))))
 
 (defn verify [req]
   (let [request req
         openidRequest (into {} (for [[k v] (:params request)] [(name k) v]))
         responseParameters (org.openid4java.message.ParameterList. openidRequest)
-        discovered @oid-discovered
+        discovered (get-in req [:session ::openid-discovered])
+        _ (println "verify: discovered=" discovered)
         receivingUrl (str (name (:scheme request)) "://"
                           ((:headers request) "host")
                           (:uri request)
@@ -28,10 +37,34 @@
                               discovered)
         verified (.getVerifiedId verification)
         authSuccess (.getAuthResponse verification)
-        _ (println "extension=" (.hasExtension authSuccess org.openid4java.message.ax.AxMessage/OPENID_NS_AX))
-        ;fetchResp (.getExtension authSuccess org.openid4java.message.ax.AxMessage/OPENID_NS_AX)
-        ;email (.getAttributeValue fetchResp "email")
+        ;; check for verification here
+        fetchResp (.getExtension authSuccess org.openid4java.message.ax.AxMessage/OPENID_NS_AX)
+        email (.getAttributeValue fetchResp "email")
         ]
     (println "verify: verified=" verified)
-
     verified))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
