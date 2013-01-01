@@ -5,9 +5,10 @@
            [compojure.handler :as handler]))
 
 (defroutes routes
-  (GET "/" [:as req] (str "s:" (get-in req [:session :openid-discovered])))
-  (GET "/login" [:as req] (openid/redirect->openid req))
-  (GET "/openid-return" [:as req] (openid/verify req)))
+  (GET "/" [:as req] (str "home:" (get-in req [:session :auth-map])))
+  (GET "/login" [:as req] (openid/redirect->openid req "/openid-return"))
+  (GET "/logged-in" [:as req] (str "logged in:" (get-in req [:session :auth-map])))
+  (GET "/openid-return" [:as req] (openid/verify req (fn [req] (assoc (redirect "/logged-in") :session (:session req))) (fn [_] (redirect "/")))))
 
 (def app (-> routes
              handler/site))
